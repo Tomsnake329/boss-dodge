@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boss Dodge - 迷你閃避遊戲</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f1226;
+      --panel: #171b34;
+      --accent: #6ee7ff;
+      --accent2: #8b5cf6;
+      --danger: #ff5d73;
+      --text: #eef2ff;
+      --muted: #aab2d5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: radial-gradient(circle at top, #1d2552, var(--bg) 55%);
+      font-family: "Segoe UI", "Noto Sans TC", sans-serif;
+      color: var(--text);
+      padding: 20px;
+    }
+
+    .wrap {
+      width: min(92vw, 760px);
+      background: rgba(23, 27, 52, 0.92);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.35);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(24px, 4vw, 36px);
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+
+    .hud {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      flex: 1 1 150px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      padding: 10px 12px;
+    }
+
+    .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .value {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: linear-gradient(180deg, #11162f, #0a0d1d);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      color: #08111d;
+      background: linear-gradient(135deg, var(--accent), #93c5fd);
+      box-shadow: 0 8px 20px rgba(110,231,255,0.25);
+    }
+
+    .tips {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .accent { color: var(--accent); }
+    .danger { color: #ff8091; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Boss Dodge</h1>
+    <div class="sub">
+      不用裝任何工具。<span class="accent">左右移動</span>躲開掉下來的紅色方塊，撐越久分數越高。
+    </div>
+
+    <div class="hud">
+      <div class="card">
+        <div class="label">分數</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="card">
+        <div class="label">最高分</div>
+        <div class="value" id="best">0</div>
+      </div>
+      <div class="card">
+        <div class="label">狀態</div>
+        <div class="value" id="state">待命</div>
+      </div>
+    </div>
+
+    <canvas id="game" width="720" height="420"></canvas>
+
+    <div class="controls">
+      <button id="startBtn">開始 / 重新開始</button>
+      <div class="tips">
+        電腦：<span class="accent">← →</span> 或 <span class="accent">A D</span><br>
+        手機：直接在畫面上 <span class="accent">左右拖曳</span><br>
+        撞到紅色方塊就結束。每過一段時間速度會變快。
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const stateEl = document.getElementById('state');
+    const startBtn = document.getElementById('startBtn');
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const bestKey = 'boss-dodge-best';
+
+    let best = Number(localStorage.getItem(bestKey) || 0);
+    bestEl.textContent = best;
+
+    let running = false;
+    let score = 0;
+    let frame = 0;
+    let spawnRate = 45;
+    let speed = 3.2;
+    let animationId = null;
+    let touchActive = false;
+
+    const player = {
+      x: W / 2 - 24,
+      y: H - 54,
+      w: 48,
+      h: 26,
+      speed: 6,
+      dx: 0
+    };
+
+    let blocks = [];
+
+    function resetGame() {
+      score = 0;
+      frame = 0;
+      spawnRate = 45;
+      speed = 3.2;
+      blocks = [];
+      player.x = W / 2 - player.w / 2;
+      player.dx = 0;
+      scoreEl.textContent = '0';
+      stateEl.textContent = '進行中';
+    }
+
+    function startGame() {
+      resetGame();
+      running = true;
+      cancelAnimationFrame(animationId);
+      loop();
+    }
+
+    function endGame() {
+      running = false;
+      stateEl.innerHTML = '<span class="danger">結束</span>';
+      if (score > best) {
+        best = Math.floor(score);
+        localStorage.setItem(bestKey, String(best));
+        bestEl.textContent = best;
+      }
+      draw();
+      overlay('遊戲結束', '按「開始 / 重新開始」再來一局');
+    }
+
+    function spawnBlock() {
+      const size = 18 + Math.random() * 26;
+      blocks.push({
+        x: Math.random() * (W - size),
+        y: -size,
+        w: size,
+        h: size,
+        vy: speed + Math.random() * 1.6
+      });
+    }
+
+    function update() {
+      frame++;
+      score += 0.12;
+      scoreEl.textContent = Math.floor(score);
+
+      if (frame % spawnRate === 0) spawnBlock();
+      if (frame % 300 === 0) {
+        speed += 0.35;
+        spawnRate = Math.max(20, spawnRate - 2);
+      }
+
+      player.x += player.dx;
+      player.x = Math.max(0, Math.min(W - player.w, player.x));
+
+      for (const b of blocks) {
+        b.y += b.vy;
+      }
+
+      blocks = blocks.filter(b => b.y < H + b.h);
+
+      for (const b of blocks) {
+        if (hit(player, b)) {
+          endGame();
+          return;
+        }
+      }
+    }
+
+    function hit(a, b) {
+      return a.x < b.x + b.w &&
+             a.x + a.w > b.x &&
+             a.y < b.y + b.h &&
+             a.y + a.h > b.y;
+    }
+
+    function drawBackground() {
+      ctx.clearRect(0, 0, W, H);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#11162f');
+      grad.addColorStop(1, '#090d1a');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      for (let x = 0; x <= W; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= H; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawPlayer() {
+      ctx.fillStyle = '#6ee7ff';
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+      ctx.fillStyle = '#dbeafe';
+      ctx.fillRect(player.x + 10, player.y - 8, player.w - 20, 8);
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = 'rgba(110,231,255,0.35)';
+      ctx.fillRect(player.x, player.y, player.w, player.h);
+      ctx.shadowBlur = 0;
+    }
+
+    function drawBlocks() {
+      for (const b of blocks) {
+        ctx.fillStyle = '#ff5d73';
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = 'rgba(255,93,115,0.35)';
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function draw() {
+      drawBackground();
+      drawBlocks();
+      drawPlayer();
+    }
+
+    function overlay(title, subtitle) {
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#eef2ff';
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 42px Segoe UI';
+      ctx.fillText(title, W / 2, H / 2 - 10);
+      ctx.font = '20px Segoe UI';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(subtitle, W / 2, H / 2 + 28);
+    }
+
+    function loop() {
+      update();
+      draw();
+      if (running) animationId = requestAnimationFrame(loop);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') player.dx = -player.speed;
+      if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') player.dx = player.speed;
+      if (!running && e.key === ' ') startGame();
+    });
+
+    document.addEventListener('keyup', (e) => {
+      const k = e.key.toLowerCase();
+      if (['arrowleft', 'a', 'arrowright', 'd'].includes(k)) {
+        if (!touchActive) player.dx = 0;
+      }
+    });
+
+    canvas.addEventListener('pointerdown', (e) => {
+      touchActive = true;
+      moveToPointer(e);
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (touchActive) moveToPointer(e);
+    });
+
+    window.addEventListener('pointerup', () => {
+      touchActive = false;
+      player.dx = 0;
+    });
+
+    function moveToPointer(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scale = W / rect.width;
+      const px = (e.clientX - rect.left) * scale;
+      player.x = Math.max(0, Math.min(W - player.w, px - player.w / 2));
+    }
+
+    startBtn.addEventListener('click', startGame);
+
+    draw();
+    overlay('Boss Dodge', '按下方按鈕開始');
+  </script>
+</body>
+</html>

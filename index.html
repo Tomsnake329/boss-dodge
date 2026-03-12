@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boss Dodge - 迷你閃避遊戲</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <h1>Boss Dodge</h1>
+    <div class="sub">
+      騎著<span class="accent">重機</span>在夜間公路上左右閃避逆向而來的車流，撐越久分數越高。
+    </div>
+
+    <div class="hud">
+      <div class="card">
+        <div class="label">分數</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="card">
+        <div class="label">最高分</div>
+        <div class="value" id="best">0</div>
+      </div>
+      <div class="card">
+        <div class="label">狀態</div>
+        <div class="value" id="state">待命</div>
+      </div>
+      <div class="card">
+        <div class="label">效果</div>
+        <div class="value effect-value" id="effect">無</div>
+      </div>
+    </div>
+
+    <canvas id="game" width="720" height="420"></canvas>
+    <div class="legend">
+      <span><b class="legend-red"></b> 逆向車流</span>
+      <span><b class="legend-blue"></b> 緩速</span>
+      <span><b class="legend-gold"></b> 得分</span>
+      <span><b class="legend-purple"></b> 加速</span>
+    </div>
+
+    <div class="controls">
+      <div class="button-row">
+        <button id="startBtn">開始 / 重新開始</button>
+        <button id="audioBtn" class="secondary">音效：開</button>
+      </div>
+      <div class="tips">
+        電腦：<span class="accent">← →</span> 或 <span class="accent">A D</span><br>
+        手機：直接在畫面上 <span class="accent">左右拖曳</span><br>
+        躲開機車、汽車、卡車、跑車；藍色可緩速、金色高亮加分、紫色會加速但衝分更快。
+      </div>
+    </div>
+  </div>
+
+  <script src="js/game.js"></script>
+</body>
+</html>
