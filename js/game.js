@@ -25,6 +25,11 @@ let spawnRate = 42;
 let baseSpeed = 3.5;
 let animationId = null;
 let touchActive = false;
+let activePointerId = null;
+let touchDragOffsetX = 0;
+let touchPrimed = false;
+let touchStartX = 0;
+let touchStartY = 0;
 let audioEnabled = true;
 let audioContext = null;
 let bgmStarted = false;
@@ -716,15 +721,65 @@ document.addEventListener('keyup', (e) => {
   }
 });
 
-canvas.addEventListener('pointerdown', (e) => { touchActive = true; moveToPointer(e); });
-canvas.addEventListener('pointermove', (e) => { if (touchActive) moveToPointer(e); });
-window.addEventListener('pointerup', () => { touchActive = false; player.dx = 0; });
+canvas.addEventListener('pointerdown', (e) => {
+  const px = getPointerX(e);
+  const py = getPointerY(e);
+  if (px < player.x || px > player.x + player.w) return;
+  if (py < player.y || py > player.y + player.h) return;
 
-function moveToPointer(e) {
+  touchPrimed = true;
+  touchActive = false;
+  activePointerId = e.pointerId;
+  touchDragOffsetX = px - player.x;
+  touchStartX = px;
+  touchStartY = py;
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!touchPrimed || e.pointerId !== activePointerId) return;
+
+  if (!touchActive) {
+    const px = getPointerX(e);
+    const py = getPointerY(e);
+    const dragDistance = Math.hypot(px - touchStartX, py - touchStartY);
+    if (dragDistance < 12) return;
+    touchActive = true;
+  }
+
+  moveToPointer(e);
+});
+
+window.addEventListener('pointerup', (e) => {
+  if (e.pointerId !== activePointerId) return;
+  touchPrimed = false;
+  touchActive = false;
+  activePointerId = null;
+  player.dx = 0;
+});
+
+window.addEventListener('pointercancel', (e) => {
+  if (e.pointerId !== activePointerId) return;
+  touchPrimed = false;
+  touchActive = false;
+  activePointerId = null;
+  player.dx = 0;
+});
+
+function getPointerX(e) {
   const rect = canvas.getBoundingClientRect();
   const scale = W / rect.width;
-  const px = (e.clientX - rect.left) * scale;
-  player.x = clamp(px - player.w / 2, 8, W - player.w - 8);
+  return (e.clientX - rect.left) * scale;
+}
+
+function getPointerY(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scale = H / rect.height;
+  return (e.clientY - rect.top) * scale;
+}
+
+function moveToPointer(e) {
+  const px = getPointerX(e);
+  player.x = clamp(px - touchDragOffsetX, 8, W - player.w - 8);
 }
 
 startBtn.addEventListener('click', startGame);
